@@ -1,0 +1,99 @@
+LIBRARY ieee ; 
+USE ieee.std_logic_1164.all; 
+USE ieee.numeric_std.all; 
+
+ENTITY cofb IS 
+	port (
+	clk : in std_logic;
+	ad, m, n, k : in std_logic_vector(127 downto 0); -- ad for asociated data , m for message, n for nonce, k for key
+	cip, t : out std_logic_vector(127 downto 0) -- c for cipher, t for tag
+	);
+end entity;
+
+architecture cofb_implementation of cofb is 
+	component giftcob is 
+		port(
+		clk : in std_logic;
+		b,k : in std_logic_vector(127 downto 0);
+		C : out std_logic_vector (127 downto 0);
+		resetnew : in std_logic;
+		done : out std_logic;
+		);
+	end component;
+
+	SIGNAL Y : std_logic_vector(127 downto 0) := (others => '0');
+	SIGNAL L : std_logic_vector(63 downto 0);
+	SIGNAL tempIn : std_logic_vector(127 downto 0);
+	SIGNAL tempOut : std_logic_vector(127 downto 0);
+	SIGNAL enable : std_logic;
+	SIGNAL tuntas : std_logic;
+	SIGNAL tempL : std_logic_vector(127 downto 0) := (others => '0');
+	CONSTANT padding : std_logic_vector(43 downto 0) := X"0000000000000000";
+	
+	BEGIN 
+	main : giftcob PORT MAP (clk => clk, b => tempIn, k => k, C => tempOut, resetnew => enable, done => tuntas)
+	process(Y, L, tempIn, tempOut, enable, ad, m, n, k)
+	variable state, nextState : integer := 0;
+	variable y1, y2 : std_logic_vector(63 downto 0);
+	BEGIN 
+	if rising_edge(clk) then 
+		state := nextState;
+	end if; 
+	
+	if state = 0 then 
+		if tuntas = '0' then 
+			tempIn <= n;
+			enable <= '0';
+		else 
+			Y <= tempOut;
+			L <= Y(63 downto 0)
+			nextState := 1;
+		end if;
+	elsif state = 1 then 
+		tempL <= std_logic_vector(unsigned(L)*3); -- Nampung nilai L sementara
+		enable <= '0'; -- Reset gift128
+		y2 <= Y(63 downto 0);
+		y1 <= Y(126 downto 64) & Y(127);
+		nextState := 2;
+	elsif state = 2 then 
+		L <= tempL(63 downto 0);
+		Y <= ad XOR (y1 & y2) XOR (L & padding)
+		nextState := 3;
+	elsif state = 3 then 
+		if tuntas = '0' then
+			enable <= '0';
+			tempIn <= Y; 
+		else 
+			Y <= tempOut;
+			tempL <= std_logic_vector(unsigned(L)*3);
+			nextstate := 4
+		end if;
+	elsif state = 4 then 
+		cip <= m xor Y;
+		y2 <= Y(63 downto 0);
+		y1 <= Y(126 downto 64) & Y(127);
+		L  <= tempL;
+		nextState := 5;
+	elsif state = 5 then 
+		Y <= m xor (y1 & y2) xor (L & padding);
+		nextState := 6;
+		enable <= '1';
+	elsif state = 6 then 
+		if tuntas = '0' then 
+			tempIn <= n;
+			enable <= '0';
+		else 
+			t <= tempOut;
+			nextState := '7';
+		end if;
+	end if;
+	end process;
+	end architecture;
+		
+		
+		
+			
+			
+	
+	
+		
